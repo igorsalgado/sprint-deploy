@@ -64,6 +64,8 @@ SPRINT=""
 TICKET=""
 REPO_NAME=""
 DEPLOYED_ENVS=()
+DEPLOYED_URLS=()
+_LAST_PR_URL=""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # EXECUÇÃO COM SUPORTE A DRY-RUN
@@ -273,6 +275,7 @@ ensure_pr() {
 
   if [[ -n "$existing_url" ]]; then
     warn "PR já existe — ${existing_url}"
+    _LAST_PR_URL="$existing_url"
     return 0
   fi
 
@@ -292,6 +295,7 @@ ensure_pr() {
 
   if [[ "$DRY_RUN" == true ]]; then
     info "[dry] gh pr create --base ${base} --head ${head} --title '${SPRINT}/${TICKET}'"
+    _LAST_PR_URL=""
     return 0
   fi
 
@@ -302,6 +306,7 @@ ensure_pr() {
     --title "${SPRINT}/${TICKET}" \
     --body  "$body")
 
+  _LAST_PR_URL="$pr_url"
   ok "PR criado: ${pr_url}"
   append_log "PR | ${head} → ${base} | ${pr_url}"
 }
@@ -349,6 +354,7 @@ deploy_to() {
       ensure_pr "$base" "$deploy_branch"
       cmd git checkout "$FEATURE"
       DEPLOYED_ENVS+=("$base")
+      DEPLOYED_URLS+=("$_LAST_PR_URL")
       ok "Deploy para ${base} concluído"
       return 0
     fi
@@ -375,6 +381,7 @@ deploy_to() {
   # ── 6. Volta para a branch de trabalho ───────────────────────────────────
   cmd git checkout "$FEATURE"
   DEPLOYED_ENVS+=("$base")
+  DEPLOYED_URLS+=("$_LAST_PR_URL")
   ok "Deploy para ${base} concluído"
 }
 
@@ -429,10 +436,16 @@ print_summary() {
   echo -e "  ${BOLD}Repo:${RESET}    ${REPO_NAME}"
   echo -e "  ${BOLD}Branch:${RESET}  ${FEATURE}"
   blank
-  for env in "${DEPLOYED_ENVS[@]}"; do
+  local i
+  for i in "${!DEPLOYED_ENVS[@]}"; do
+    local env="${DEPLOYED_ENVS[$i]}"
+    local url="${DEPLOYED_URLS[$i]:-}"
     local suffix="dev"
     if [[ "$env" == "homolog" ]]; then suffix="hml"; fi
     echo -e "  ${GREEN}✓${RESET} ${env}   ${DIM}feat/${SPRINT}/${TICKET}-${suffix}${RESET}"
+    if [[ -n "$url" ]]; then
+      echo -e "    ${CYAN}${url}${RESET}"
+    fi
   done
   blank
   if [[ "$DRY_RUN" == true ]]; then echo -e "  ${YELLOW}(modo dry-run — nenhuma alteração foi feita)${RESET}\n"; fi
