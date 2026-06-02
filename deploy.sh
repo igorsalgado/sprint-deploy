@@ -276,12 +276,22 @@ ensure_pr() {
     return 0
   fi
 
-  local body
-  body=$(printf '## Deploy automático\n\n| | |\n|---|---|\n| **Sprint** | `%s` |\n| **Ticket** | `%s` |\n| **Origem** | `%s` |\n| **Destino** | `%s` |\n\n---\n*Gerado por deploy.sh v%s*' \
-    "$SPRINT" "$TICKET" "$FEATURE" "$base" "$VERSION")
+  local master_pr body
+  master_pr=$(gh pr list \
+    --head  "$FEATURE" \
+    --base  "master" \
+    --state open \
+    --json  number \
+    --jq    '.[0].number // ""' 2>/dev/null || echo "")
+
+  if [[ -n "$master_pr" ]]; then
+    body="#${master_pr}"
+  else
+    body=""
+  fi
 
   if [[ "$DRY_RUN" == true ]]; then
-    info "[dry] gh pr create --base ${base} --head ${head} --title '${SPRINT}/${TICKET} → ${base}'"
+    info "[dry] gh pr create --base ${base} --head ${head} --title '${SPRINT}/${TICKET}'"
     return 0
   fi
 
